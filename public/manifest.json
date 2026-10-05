@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3, "name": "LearnLayer", "version": "0.1.0",
+  "description": "Your learning progress, on the websites you already use.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "action": { "default_popup": "popup.html", "default_title": "LearnLayer" },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{ "matches": ["https://*/*", "http://*/*"], "js": ["content.js"], "run_at": "document_idle" }]
+}

@@ -17,6 +17,7 @@ if (!document.getElementById('learnlayer-root')) {
   void chrome.storage.local.get(['ll:reminders']).then(values => { reminders = values['ll:reminders'] === true; }).catch(() => {});
   chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes['ll:reminders']) { reminders = changes['ll:reminders'].newValue === true; refresh(); } });
   const subscribers = new Set<() => void>();
+  const openSubscribers = new Set<() => void>();
   function refresh() {
     if (priorUrl !== location.href) { elapsed = 0; priorUrl = location.href; }
     const course = detectLearningStructure(document, location.href);
@@ -31,11 +32,18 @@ if (!document.getElementById('learnlayer-root')) {
   setInterval(() => { if (document.visibilityState === 'visible') elapsed++; if (location.href !== priorUrl || elapsed % 5 === 0) refresh(); }, 1000);
   window.addEventListener('hashchange', refresh);
   window.addEventListener('scroll', () => { clearTimeout(debounce); debounce = setTimeout(refresh, 150); }, { passive: true });
-  chrome.runtime.onMessage.addListener((message, _sender, reply) => { if (message?.type === 'LL_SNAPSHOT') { refresh(); reply(snapshot); } });
+  chrome.runtime.onMessage.addListener((message, _sender, reply) => { if (message?.type === 'LL_SNAPSHOT') { refresh(); reply(snapshot); } if (message?.type === 'LL_OPEN_PANEL') { openSubscribers.forEach(fn => fn()); reply({ opened: true }); } });
   function Layer() {
     const [page, setPage] = useState(snapshot), [open, setOpen] = useState(false);
     useEffect(() => { const fn = () => setPage(snapshot); subscribers.add(fn); return () => { subscribers.delete(fn); }; }, []);
-    useEffect(() => { if (!open) return; const listener = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); }; document.addEventListener('keydown', listener); return () => document.removeEventListener('keydown', listener); }, [open]);
+    useEffect(() => { const fn = () => setOpen(true); openSubscribers.add(fn); return () => { openSubscribers.delete(fn); }; }, []);
+    useEffect(() => {
+      if (!open) return;
+      shadow.querySelector<HTMLButtonElement>('.ll-close')?.focus({ preventScroll: true });
+      const listener = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+      document.addEventListener('keydown', listener);
+      return () => { document.removeEventListener('keydown', listener); shadow.querySelector<HTMLButtonElement>('.ll-float')?.focus({ preventScroll: true }); };
+    }, [open]);
     if (!page.course && !open) return null;
     return <>{open && <div className="ll-overlay"><Panel snapshot={page} close={() => setOpen(false)} navigate={url => { location.href = url; }} /></div>}<button className="ll-float" aria-expanded={open} onClick={() => setOpen(!open)}>◈ LearnLayer {open ? '×' : '↗'}</button></>;
   }

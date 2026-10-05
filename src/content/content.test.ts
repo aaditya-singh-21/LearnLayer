@@ -43,5 +43,11 @@ it('production content bundle mounts isolated UI, replies to popup, and saves a 
   window.eval(code); expect(document.querySelectorAll('#learnlayer-root')).toHaveLength(1);
   (shadow.querySelector('.ll-close') as HTMLButtonElement).click(); await settle();
   expect(shadow.querySelector('.ll-panel')).toBeNull();
+  messageListener({type:'LL_OPEN_PANEL'}, {}, () => {}); await settle();
+  expect(shadow.querySelector('.ll-panel')).not.toBeNull();
+  expect(shadow.querySelector('.ll-chapter-link[aria-current="location"]')).not.toBeNull();
+  expect(shadow.querySelector('.ll-chapters')?.getAttribute('tabindex')).toBe('0');
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await settle();
+  expect(shadow.querySelector('.ll-panel')).toBeNull();
   vi.restoreAllMocks();
 });

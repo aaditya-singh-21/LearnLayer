@@ -19,6 +19,6 @@ function Popup() {
     } catch { setError('This page cannot be inspected. Refresh it and reopen LearnLayer.'); }
     finally { setLoading(false); }
   })(); }, []);
-  return <Panel snapshot={snapshot} loading={loading} error={error} navigate={url => { if (tabId) void chrome.tabs.update(tabId, { url }).then(() => window.close()); }} />;
+  return <Panel snapshot={snapshot} loading={loading} error={error} openPanel={tabId && snapshot.course ? () => { void chrome.tabs.sendMessage(tabId, { type: 'LL_OPEN_PANEL' }).then(() => window.close()).catch(() => setError('Could not open the page panel. Refresh the page and try again.')); } : undefined} navigate={url => { if (tabId) void chrome.tabs.update(tabId, { url }).then(() => window.close()); }} />;
 }
 createRoot(document.getElementById('root')!).render(<Popup />);

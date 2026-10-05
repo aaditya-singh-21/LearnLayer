@@ -21,6 +21,8 @@ npm run build
 
 After rebuilding, click **Reload** on the extension card and refresh existing website tabs. The popup can also inject the content script into an eligible tab that was open before installation.
 
+On Windows, stop any running `npm run dev` process with **Ctrl+C** before running `npm ci`. Vite can hold Rollup's native binary open, causing `EPERM unlink` during reinstallation. If installation fails halfway through, stop the dev server and rerun `npm ci` before building; missing `tsc` usually means the dependency installation is incomplete.
+
 ## Implemented
 
 - Chapter/module/lesson lists, labeled documentation sidebars, educational navigation, and anchored hierarchical headings.
@@ -29,6 +31,7 @@ After rebuilding, click **Reload** on the extension card and refresh existing we
 - Manual complete/incomplete controls, completion percentage, completed filter, current chapter, next incomplete chapter, and all-complete state.
 - `chrome.storage.local` persists independent chapter keys across popup closure, page changes, refreshes, and browser restarts. Storage changes update open panels across tabs.
 - Shared dark React popup and floating panel. Injected UI uses Shadow DOM; page content and styles are preserved. Escape closes the floating panel.
+- Wider chapter-first layout, larger chapter text and completion targets, keyboard-scrollable chapter list, completed filter, and a **Current** shortcut. Use the popup header's **↗** button to open the taller page panel. Very short windows scroll the entire panel instead of squeezing the list into a tiny area.
 - **Reminders off/on** is an opt-in global preference. After at least 45 seconds with the tab visible and reaching the page bottom, the panel suggests completing the current chapter. It never marks completion automatically.
 - Handles delayed navigation rendering and URL changes in single-page applications.
 

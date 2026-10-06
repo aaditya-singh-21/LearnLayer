@@ -63,3 +63,12 @@ it('does not treat a course source page as a visited chapter',()=>{
  const visited=reduceCatalog(state,{type:'visit',course:first,url:first.chapters[0].url+'?utm_source=test#intro'},2);
  expect(visited[first.id].lastVisitedUrl).toBe(first.chapters[0].url);
 });
+it('retains discovered curricula without library membership or overwriting corrections',()=>{
+ const first=course();
+ const discovered=reduceCatalog({}, {type:'discover',course:first},1);
+ expect(discovered[first.id].membership).toBeNull();
+ expect(resolveStored(discovered,first.chapters[0].url!,null)).toHaveLength(1);
+ const corrected=reduceCatalog(discovered,{type:'edit',course:{...first,title:'My title'}},2);
+ expect(reduceCatalog(corrected,{type:'discover',course:first},3)).toEqual(corrected);
+ expect(reduceCatalog(discovered,{type:'discover',course:first},4)).toEqual(discovered);
+});

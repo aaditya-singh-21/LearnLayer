@@ -99,7 +99,7 @@ The script loads `dist` into a newly created isolated temporary profile and serv
 - Support depends on accessible DOM structures, not every website. Canvas/iframe-only lessons and arbitrary card grids may be unsupported.
 - Automatic navigation candidates require 3–150 useful links; manually created courses can have one chapter.
 - Cross-origin chapters are excluded. Course lists are flattened rather than nested.
-- A correction is a stored curriculum, not a selector that continually incorporates site changes; review/reset it when the site's curriculum changes.
+- Cross-page detected curricula are cached locally without Saved or Recent membership, allowing chapter pages to reuse the full course even before completion. A correction is a stored curriculum, not a selector that continually incorporates site changes; review/reset it when the site's curriculum changes.
 - No network fetches, accounts, cloud sync, backup/import, cross-source paths, or destructive progress-reset feature.
 - Protected Chrome pages, the Web Store, PDF viewer, and file URLs cannot be inspected. My learning remains available through the popup.
 - Opt-in reminders use 45 seconds of visible-tab time plus document-bottom scrolling. They suggest completion and never mark it automatically; nested scrollers/video playback are not measured.
@@ -107,6 +107,8 @@ The script loads `dist` into a newly created isolated temporary profile and serv
 
 ### Verification for this release
 
-On October 6, 2026, `npm test` passed all 32 tests and the production build. The isolated installed-Chromium smoke test passed the flows above, including reopening the browser profile. The dashboard screenshot was visually inspected. Toolbar button interaction and its user-granted `activeTab` permission still need a manual Chrome check: opening `popup.html` as a background test tab does not grant that permission. The content-message editor handoff is covered, but the automated run does not claim to reproduce a real toolbar click. Live-site breadth, extraction accuracy, and performance have not been benchmarked.
+On October 6, 2026, `npm test` passed all 35 tests and the production build. The isolated installed-Chromium smoke test passed the flows above, including reopening the browser profile. The dashboard screenshot was visually inspected. Toolbar button interaction and its user-granted `activeTab` permission still need a manual Chrome check: opening `popup.html` as a background test tab does not grant that permission. The content-message editor handoff is covered, but the automated run does not claim to reproduce a real toolbar click. Live-site breadth, extraction accuracy, and performance have not been benchmarked.
 
 A live Rust Book check also passed: the installed extension extracted all 111 sidebar entries, retained the same course identity between Getting Started and Installation, and preserved completion. Run `node scripts/check-rust.cjs` with the same Playwright environment settings to repeat it. Book-style numeric tables of contents are handled generically; article-section links inserted beneath a chapter are excluded when that chapter's page link is already present.
+
+A live Python Tutorial check passed: the main-content nested index is recognized as a curriculum with 16 top-level chapters. Opening a chapter before completion retains the full tutorial; marking completion adds it to Recent and preserves progress on other chapters. Anchor subsections under existing chapter-page links are treated as chapter content, not a separate expandable tree. Repeat this live check with `node scripts/check-python.cjs` using the same Playwright settings.

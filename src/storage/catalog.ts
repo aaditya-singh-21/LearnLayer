@@ -3,11 +3,12 @@ import { canonicalUrl, pageUrl, stableId } from '../utils/identity';
 import { currentChapter } from '../utils/progress';
 export const catalogKey = 'll:v2:catalog';
 export type Catalog = Record<string, CourseRecord>;
-export type CatalogAction = { type: 'save' | 'unsave' | 'edit' | 'complete' | 'visit'; course: LearningCourse; url?: string; corrected?: boolean };
+export type CatalogAction = { type: 'discover' | 'save' | 'unsave' | 'edit' | 'complete' | 'visit'; course: LearningCourse; url?: string; corrected?: boolean };
 export async function readCatalog(): Promise<Catalog> { return ((await chrome.storage.local.get([catalogKey]))[catalogKey] || {}) as Catalog; }
 export function reduceCatalog(catalog: Catalog, action: CatalogAction, now = Date.now()): Catalog {
   const result = structuredClone(catalog);
   const prior = result[action.course.id];
+  if (action.type === 'discover' && prior) return result;
   if (action.type === 'visit' && (!prior || !prior.membership)) return result;
   const record: CourseRecord = prior || { version: 2, course: action.course, originalId: action.course.id, corrected: false, membership: null, activity: now };
   if (action.type === 'edit') { record.course = action.course; record.corrected = action.corrected ?? true; }

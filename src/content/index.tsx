@@ -5,6 +5,7 @@ import css from '../components/panel.css?inline';
 import { detectLearningReport } from '../detection/detect';
 import type { PageSnapshot } from '../types';
 import { currentChapter } from '../utils/progress';
+import { pageUrl } from '../utils/identity';
 import { readCatalog, resolveStored, mutateCatalog, catalogKey, storedDefinition } from '../storage/catalog';
 if (!document.getElementById('learnlayer-root')) {
   const host = document.createElement('div'); host.id = 'learnlayer-root';
@@ -40,6 +41,12 @@ if (!document.getElementById('learnlayer-root')) {
       else if (matches.length > 1) {
         course = null; detection.status = 'ambiguous'; delete detection.selected;
         detection.candidates = matches.map(r => ({ course: r.course, detectorId: 'stored-definition', score: 100, reasons: ['Previously tracked course contains this page'] }));
+      }
+      if (course && !catalog[course.id] && course.kind === 'navigation' &&
+          new Set(course.chapters.map(c => c.url && pageUrl(c.url))).size >= 3) {
+        // Retain the curriculum for chapter pages that only expose local
+        // sections. This creates no Saved or Recent membership.
+        await mutateCatalog({ type: 'discover', course });
       }
       if (course && catalog[course.id]?.membership && currentChapter(course,url)) {
         const visit = course.id + '|' + url;

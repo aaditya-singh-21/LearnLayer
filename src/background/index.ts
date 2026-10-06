@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   queue = queue.then(async () => {
     try {
       const action = message.action as CatalogAction;
-      if (!['save','unsave','edit','complete','visit'].includes(action.type)) throw new Error('Unknown course action.');
+      if (!['discover','save','unsave','edit','complete','visit'].includes(action.type)) throw new Error('Unknown course action.');
       const catalog = await readCatalog();
       action.course = validateCourse(action.course, catalog[action.course.id]?.course);
       const next = reduceCatalog(catalog, action);

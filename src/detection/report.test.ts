@@ -4,9 +4,10 @@ import { detectLearningReport, detectLearningStructure, detectionPolicy } from '
 const doc=(html:string)=>new DOMParser().parseFromString(html,'text/html');
 const list=(prefix:string)=>`<nav aria-label="Chapters">${[1,2,3].map(i=>`<a href="/${prefix}/${i}">Chapter ${i}: Topic</a>`).join('')}</nav>`;
 it('detects book sidebars with hierarchical numbers and stable identity across chapters',()=>{
- const html='<h1>Example programming book</h1><nav class="sidebar" aria-label="Table of contents"><ol><li><a href="intro.html">Introduction</a></li><li><a href="start.html"><strong>1.</strong> Getting Started</a><ol><li><a href="install.html"><strong>1.1.</strong> Installation</a></li><li><a href="hello.html"><strong>1.2.</strong> Hello World</a></li></ol></li><li><a href="concepts.html"><strong>2.</strong> Common Concepts</a></li></ol></nav><main><h1>Getting Started</h1></main>';
+ const html='<div role="dialog"><h1>Keyboard shortcuts</h1></div><div class="menu-bar"><h1>Example programming book</h1></div><nav class="sidebar" aria-label="Table of contents"><ol><li><a href="intro.html">Introduction</a></li><li><a href="start.html"><strong>1.</strong> Getting Started</a><ol><li><a href="install.html"><strong>1.1.</strong> Installation</a></li><li><a href="hello.html"><strong>1.2.</strong> Hello World</a></li></ol></li><li><a href="concepts.html"><strong>2.</strong> Common Concepts</a></li></ol></nav><main><h1>Getting Started</h1></main>';
  for(const host of ['doc.rust-lang.org','unseen.example']) {
-  const first=detectLearningReport(doc(html),`https://${host}/book/start.html`);
+  const firstDoc=doc(html);firstDoc.documentElement.className='sidebar-visible';firstDoc.body.className='course-open';
+  const first=detectLearningReport(firstDoc,`https://${host}/book/start.html`);
   const next=detectLearningReport(doc(html.replace('<main><h1>Getting Started','<main><h1>Installation')),`https://${host}/book/install.html`);
   expect(first.status).toBe('detected');expect(first.selected?.course.title).toBe('Example programming book');
   expect(first.selected?.course.chapters).toHaveLength(5);expect(next.selected?.course.id).toBe(first.selected?.course.id);
@@ -42,4 +43,18 @@ it('rejects a learning label alone on unrelated menus',()=>{ expect(detectLearni
 it('deduplicates nested lists and prefers a course over page sections',()=>{
  const html='<a href="/course">Course title</a>'+list('course').replace('</nav>','<ul>'+[1,2,3].map(i=>`<li><a href="/course/${i}">Chapter ${i}: Topic</a></li>`).join('')+'</ul></nav>')+'<main><h1>Learning tutorial</h1><h2 id="a">Start</h2><h2 id="b">Practice</h2><h2 id="c">Finish</h2></main>';
  const report=detectLearningReport(doc(html),'https://example.com/course/1');expect(report.status).toBe('detected');expect(report.selected?.detectorId).toBe('curriculum-navigation');expect(report.candidates.filter(c=>c.detectorId==='curriculum-navigation')).toHaveLength(1);
+});
+it('detects a nested curriculum in main content at an index, not its section sublists',()=>{
+ const list='<ul>'+[1,2,3,4].map(i=>`<li><a href="lesson-${i}.html">${i}. Lesson ${i}</a><ul><li><a href="lesson-${i}.html#one">${i}.1. First section</a></li><li><a href="lesson-${i}.html#two">${i}.2. Second section</a></li><li><a href="lesson-${i}.html#three">${i}.3. Third section</a></li></ul></li>`).join('')+'</ul>';
+ const html='<div role="main"><h1>The Programming Tutorial<a href="#title">¶</a></h1>'+list+'</div>';
+ for (const host of ['docs.python.org','unseen.example']) for(const index of ['', 'index.html']) {
+  const report=detectLearningReport(doc(html),`https://${host}/3/tutorial/${index}`);
+  expect(report.status).toBe('detected');expect(report.candidates).toHaveLength(1);
+  expect(report.selected?.course.title).toBe('The Programming Tutorial');
+  expect(report.selected?.course.chapters).toHaveLength(4);expect(report.selected?.course.sourceUrl).toBe(`https://${host}/3/tutorial`);
+ }
+});
+it('rejects uncontextualized numbered link lists in main content',()=>{
+ const html='<main><h1>Our products</h1><ul>'+[1,2,3].map(i=>`<li><a href="/products/${i}">${i}. Product ${i}</a></li>`).join('')+'</ul></main>';
+ expect(detectLearningReport(doc(html),'https://example.com/products/').status).toBe('unsupported');
 });

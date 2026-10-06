@@ -19,7 +19,11 @@ export function detectLearningReport(doc: Document, currentUrl: string): Detecti
     if (seen.has(fingerprint)) return false; seen.add(fingerprint); return true;
   });
   const first = candidates[0];
-  if (!first || first.score < detectionPolicy.minimumScore) return { status: 'unsupported', candidates };
+  if (!first) return { status: 'unsupported', candidates };
+  // Structural validation already filters ordinary menus. A sole candidate
+  // needs no choice screen; the user can correct it through Edit course.
+  if (candidates.length === 1) return { status: 'detected', candidates, selected: first };
+  if (first.score < detectionPolicy.minimumScore) return { status: 'unsupported', candidates };
   const second = candidates[1];
   if (second && first.score - second.score < detectionPolicy.ambiguityMargin) return { status: 'ambiguous', candidates };
   return { status: 'detected', candidates, selected: first };

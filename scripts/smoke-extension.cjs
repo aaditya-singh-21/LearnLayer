@@ -8,7 +8,8 @@ const http = require('node:http');
 const fixture = '<!doctype html><title>Learning course</title><a href="/course">Example course</a><nav aria-label="Chapters">' + [1,2,3].map(i=>`<a href="/course/${i}">Chapter ${i}: Topic ${i}</a>`).join('') + '</nav><main><h1>Learning course</h1><p>Fixture content</p></main>';
 (async()=> {
  const alternate = '<nav aria-label="Chapters">'+[1,2,3].map(i=>`<a href="/other/${i}">Chapter ${i}: Other topic</a>`).join('')+'</nav>';
- const server=http.createServer((req,res)=> { res.setHeader('Content-Type','text/html');res.end(req.url.startsWith('/ambiguous') ? fixture.replaceAll('/course','/alpha') + alternate : req.url.startsWith('/plain') ? '<!doctype html><title>Plain page</title><main>No curriculum here</main>' : fixture); });
+ const single = '<!doctype html><title>Reference</title><nav aria-label="Documentation"><a href="#a">Introduction</a><a href="#b">Examples</a><a href="#c">Exercises</a></nav>';
+ const server=http.createServer((req,res)=> { res.setHeader('Content-Type','text/html');res.end(req.url.startsWith('/single') ? single : req.url.startsWith('/ambiguous') ? fixture.replaceAll('/course','/alpha') + alternate : req.url.startsWith('/plain') ? '<!doctype html><title>Plain page</title><main>No curriculum here</main>' : fixture); });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const base=`http://127.0.0.1:${server.address().port}`;
  const profile=mkdtempSync(path.join(tmpdir(),'learnlayer-v2-smoke-'));
@@ -95,6 +96,15 @@ const fixture = '<!doctype html><title>Learning course</title><a href="/course">
   await page.getByRole('button',{name:'Save changes',exact:true}).click();
   await page.getByRole('progressbar').waitFor();
   await dashboard.screenshot({path:path.join(tmpdir(),'learnlayer-v2-dashboard.png'),fullPage:true});
+  await page.goto(base+'/single');
+  await page.getByRole('button',{name:/LearnLayer/}).click();
+  await page.getByRole('heading',{name:'Reference',exact:true}).waitFor();
+  await page.getByRole('progressbar').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Review detected structures'}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Preview this structure'}).count(),0);
+  await page.getByRole('button',{name:'Edit course',exact:true}).click();
+  await page.getByRole('heading',{name:'Edit course',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
   await context.close();context=null;
   context=await chromium.launchPersistentContext(profile,options);
   const persisted=await context.newPage();

@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 import { expect, it } from 'vitest';
-import { detectLearningReport } from './detect';
+import { detectLearningReport, detectLearningStructure, detectionPolicy } from './detect';
 const doc=(html:string)=>new DOMParser().parseFromString(html,'text/html');
 const list=(prefix:string)=>`<nav aria-label="Chapters">${[1,2,3].map(i=>`<a href="/${prefix}/${i}">Chapter ${i}: Topic</a>`).join('')}</nav>`;
+it('automatically uses a sole structurally valid candidate even below the ranking threshold',()=>{
+ const page=doc('<title>Reference</title><nav aria-label="Documentation"><a href="#a">Introduction</a><a href="#b">Examples</a><a href="#c">Exercises</a></nav>');
+ const report=detectLearningReport(page,'https://example.com/reference');
+ expect(report.candidates).toHaveLength(1);
+ expect(report.candidates[0].score).toBeLessThan(detectionPolicy.minimumScore);
+ expect(report.status).toBe('detected');
+ expect(report.selected?.course.chapters).toHaveLength(3);
+ expect(detectLearningStructure(page,'https://example.com/reference')).toEqual(report.selected?.course);
+});
 it('generalizes across domains and deduplicates responsive structures',()=>{
  for (const host of ['example.com','unseen.test','another.org']) { const report=detectLearningReport(doc(list('course')+list('course')),`https://${host}/course/1`); expect(report.status).toBe('detected'); expect(report.candidates).toHaveLength(1); }
 });

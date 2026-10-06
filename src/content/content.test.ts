@@ -8,7 +8,7 @@ it('production content bundle mounts isolated UI, replies to popup, and saves a 
   const disk: Record<string, unknown> = {};
   const listeners = new Set<(changes: Record<string,unknown>, area: string) => void>();
   let messageListener: (message: unknown, sender: unknown, reply: (page: PageSnapshot) => void) => void = () => {};
-  vi.stubGlobal('chrome', { runtime: { onMessage: { addListener: (fn: typeof messageListener) => { messageListener = fn; } } }, storage: { local: { get: async (keys: string[]) => Object.fromEntries(keys.map(k => [k,disk[k]])), set: async (values: Record<string, unknown>) => { Object.assign(disk,values); const changes = Object.fromEntries(Object.entries(values).map(([k,v]) => [k,{newValue:v}])); listeners.forEach(fn => fn(changes,'local')); } }, onChanged: { addListener: (fn: (changes: Record<string,unknown>, area: string) => void) => listeners.add(fn), removeListener: (fn: (changes: Record<string,unknown>, area: string) => void) => listeners.delete(fn) } } });
+  vi.stubGlobal('chrome', { runtime: { sendMessage: async () => ({ok:true}), onMessage: { addListener: (fn: typeof messageListener) => { messageListener = fn; } } }, storage: { local: { get: async (keys: string[]) => Object.fromEntries(keys.map(k => [k,disk[k]])), set: async (values: Record<string, unknown>) => { Object.assign(disk,values); const changes = Object.fromEntries(Object.entries(values).map(([k,v]) => [k,{newValue:v}])); listeners.forEach(fn => fn(changes,'local')); } }, onChanged: { addListener: (fn: (changes: Record<string,unknown>, area: string) => void) => listeners.add(fn), removeListener: (fn: (changes: Record<string,unknown>, area: string) => void) => listeners.delete(fn) } } });
   let tick: () => void = () => {};
   vi.spyOn(window, 'setInterval').mockImplementation((handler) => { tick = handler as () => void; return 1 as unknown as ReturnType<typeof window.setInterval>; });
   const code = readFileSync('dist/content.js', 'utf8');
@@ -19,7 +19,7 @@ it('production content bundle mounts isolated UI, replies to popup, and saves a 
   expect(shadow.querySelector('style')?.textContent).toContain('.ll-panel');
   expect(shadow.querySelector('.ll-float')).not.toBeNull();
   let snapshot: PageSnapshot | undefined;
-  messageListener({type:'LL_SNAPSHOT'}, {}, page => { snapshot = page; });
+  messageListener({type:'LL_SNAPSHOT'}, {}, page => { snapshot = page; }); await settle();
   expect(snapshot?.course?.chapters).toHaveLength(3);
   (shadow.querySelector('.ll-float') as HTMLButtonElement).click(); await settle();
   expect(shadow.textContent).toContain('System Design');

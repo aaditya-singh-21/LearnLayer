@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.zip
 .npm-cache/
+
+# Local architecture and code walkthrough; keep off GitHub.
+/LEARNLAYER_INTERNAL_GUIDE.md

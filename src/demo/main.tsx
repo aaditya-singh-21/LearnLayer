@@ -2,15 +2,11 @@
 import { createRoot } from 'react-dom/client';
 import { Panel } from '../components/Panel';
 import { detectLearningStructure } from '../detection/detect';
+import { installPreviewChrome } from './chrome';
 import { useState } from 'react';
 import '../components/panel.css';
 import './demo.css';
-const listeners = new Set<(changes: unknown, area: string) => void>();
-const demoStorage = {
-  get: async (keys: string[]) => Object.fromEntries(keys.map(k => [k, JSON.parse(localStorage.getItem(k) || 'null')])),
-  set: async (values: Record<string, unknown>) => { for (const [key,value] of Object.entries(values)) localStorage.setItem(key, JSON.stringify(value)); listeners.forEach(fn => fn(values, 'local')); }
-};
-Object.assign(window, { chrome: { storage: { local: demoStorage, onChanged: { addListener: (fn: (changes: unknown, area: string) => void) => listeners.add(fn), removeListener: (fn: (changes: unknown, area: string) => void) => listeners.delete(fn) } } } });
+installPreviewChrome();
 const titles = ['Scale from Zero to Millions of Users','Back-of-the-Envelope Estimation','A Framework for System Design Interviews','Design a Rate Limiter','Design Consistent Hashing','Design a Key-Value Store','Design a URL Shortener'];
 const doc = new DOMParser().parseFromString(`<a href="/system-design">System Design</a><nav aria-label="Chapters"><ul>${titles.map((t,i) => `<li><a href="/system-design/chapter-${i+1}">Chapter ${i+1}: ${t}</a></li>`).join('')}</ul></nav>`, 'text/html');
 const course = detectLearningStructure(doc, 'https://demo.learnlayer.test/system-design/chapter-1');

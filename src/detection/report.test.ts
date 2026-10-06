@@ -3,6 +3,28 @@ import { expect, it } from 'vitest';
 import { detectLearningReport, detectLearningStructure, detectionPolicy } from './detect';
 const doc=(html:string)=>new DOMParser().parseFromString(html,'text/html');
 const list=(prefix:string)=>`<nav aria-label="Chapters">${[1,2,3].map(i=>`<a href="/${prefix}/${i}">Chapter ${i}: Topic</a>`).join('')}</nav>`;
+it('detects book sidebars with hierarchical numbers and stable identity across chapters',()=>{
+ const html='<h1>Example programming book</h1><nav class="sidebar" aria-label="Table of contents"><ol><li><a href="intro.html">Introduction</a></li><li><a href="start.html"><strong>1.</strong> Getting Started</a><ol><li><a href="install.html"><strong>1.1.</strong> Installation</a></li><li><a href="hello.html"><strong>1.2.</strong> Hello World</a></li></ol></li><li><a href="concepts.html"><strong>2.</strong> Common Concepts</a></li></ol></nav><main><h1>Getting Started</h1></main>';
+ for(const host of ['doc.rust-lang.org','unseen.example']) {
+  const first=detectLearningReport(doc(html),`https://${host}/book/start.html`);
+  const next=detectLearningReport(doc(html.replace('<main><h1>Getting Started','<main><h1>Installation')),`https://${host}/book/install.html`);
+  expect(first.status).toBe('detected');expect(first.selected?.course.title).toBe('Example programming book');
+  expect(first.selected?.course.chapters).toHaveLength(5);expect(next.selected?.course.id).toBe(first.selected?.course.id);
+  expect(first.selected?.detectorId).toBe('curriculum-navigation');
+ }
+});
+it('does not infer a course from bare numbers on a product sidebar',()=>{
+ const html='<aside><ol>'+[1,2,3].map(i=>`<li><a href="/products/${i}">${i}. Product ${i}</a></li>`).join('')+'</ol></aside>';
+ expect(detectLearningReport(doc(html),'https://example.com/products/1').status).toBe('unsupported');
+});
+it('ignores dynamically inserted article headings inside cross-page book navigation',()=>{
+ const chapters=[1,2,3,4].map(i=>`<a href="/book/${i}.html">${i}. Topic ${i}</a>`).join('');
+ const html=`<h1>Programming book</h1><nav class="sidebar" aria-label="Table of contents"><div class="sidebar-scrollbox">${chapters}</div><ol><li><a href="/book/1.html#topic">Topic 1</a></li></ol></nav>`;
+ const report=detectLearningReport(doc(html),'https://example.com/book/1.html');
+ expect(report.status).toBe('detected');expect(report.candidates).toHaveLength(1);
+ expect(report.selected?.course.chapters).toHaveLength(4);
+ expect(report.selected?.course.chapters.every(c=>!new URL(c.url!).hash)).toBe(true);
+});
 it('automatically uses a sole structurally valid candidate even below the ranking threshold',()=>{
  const page=doc('<title>Reference</title><nav aria-label="Documentation"><a href="#a">Introduction</a><a href="#b">Examples</a><a href="#c">Exercises</a></nav>');
  const report=detectLearningReport(page,'https://example.com/reference');

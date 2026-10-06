@@ -3,7 +3,8 @@ import { canonicalUrl, pageUrl } from '../utils/identity';
 import type { DetectionCandidate } from '../types';
 import { detectionPolicy as weights } from './policy';
 const sequence = /\b(chapter|lesson|module|part)\s*\d+/i;
-const educational = /\b(course|tutorial|documentation|docs|learn|guide|chapters|lessons|modules|series|curriculum)\b/i;
+const numericSequence = /^\d+(?:\.\d+)*[.)]\s+\S/;
+const educational = /\b(book|course|tutorial|documentation|docs|learn|guide|chapters|lessons|modules|series|curriculum)\b/i;
 const clean = (text: string | null | undefined) => (text || '').replace(/\s+/g, ' ').trim();
 const prettify = (text: string) => text.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 function sharedPath(items: DetectedItem[]): string {
@@ -24,22 +25,33 @@ export function navigationCandidates(doc: Document, currentUrl: string): Detecti
       if (title.length < 3 || title.length > 180 || /^(home|login|sign in|contact|privacy|terms|about|pricing|next|previous)$/i.test(title)) continue;
       try { const url = new URL(link.getAttribute('href')!, currentUrl); if (!/^https?:$/.test(url.protocol) || url.origin !== current.origin) continue; items.push({ title, url: canonicalUrl(url.href) }); } catch { /* malformed link */ }
     }
-    const unique = [...new Map(items.map(item => [item.url, item])).values()];
+    let unique = [...new Map(items.map(item => [item.url, item])).values()];
+    // Some book sidebars insert the current article's headings beneath the
+    // chapter list. Keep chapter navigation stable as those headings change.
+    if (unique.filter(item => pageUrl(item.url!) !== pageUrl(currentUrl)).length >= 3) {
+      const chapterPages = new Set(unique.filter(item => !new URL(item.url!).hash).map(item => pageUrl(item.url!)));
+      unique = unique.filter(item => !new URL(item.url!).hash || !chapterPages.has(pageUrl(item.url!)));
+    }
     if (unique.length < 3 || unique.length > 150) continue;
-    const numbered = unique.filter(item => sequence.test(item.title)).length;
-    const hint = educational.test(label + ' ' + container.className);
     const path = sharedPath(unique);
     const pathHint = educational.test(path.replace(/[-_/]/g, ' '));
+    const semantic = container.matches('nav,aside,[role="navigation"],[class*="sidebar"]');
+    const toc = /^(table of contents|contents)$/i.test(label);
+    const hint = educational.test(label + ' ' + container.className);
+    // Bare hierarchical numbering needs navigation and book/learning context.
+    // Numbered product lists alone are not evidence of a curriculum.
+    const bookNumbers = semantic && path !== '/' && (toc || hint || pathHint);
+    const numbered = unique.filter(item => sequence.test(item.title) || bookNumbers && numericSequence.test(item.title)).length;
     if (numbered < 3 && !hint && !pathHint) continue;
     const crossPage = unique.filter(item => pageUrl(item.url!) !== pageUrl(currentUrl)).length;
     // Generic menus and unrelated article link lists are not a learning sequence.
     if (!numbered && !hint && (!pathHint || !container.matches('nav,aside,[role="navigation"],[class*="sidebar"]'))) continue;
     const sourceUrl = crossPage ? current.origin + path : pageUrl(currentUrl);
     const rootLink = [...doc.querySelectorAll('a[href]')].find(a => { try { return pageUrl(new URL(a.getAttribute('href')!, currentUrl).href) === pageUrl(sourceUrl) && clean(a.textContent).length > 2; } catch { return false; } });
-    const title = crossPage ? clean(rootLink?.textContent || '') || (label && !/^(chapters|lessons|modules|navigation|table of contents|on this page)$/i.test(label) ? label : prettify(path.split('/').filter(Boolean).at(-1) || current.hostname)) : clean(doc.querySelector('h1')?.textContent || doc.title);
+    const bookTitle = bookNumbers && toc && numbered >= 3 ? clean([...doc.querySelectorAll('h1')].find(h => !h.closest('main,article'))?.textContent) : '';
+    const title = crossPage ? clean(rootLink?.textContent || '') || bookTitle || (label && !/^(chapters|lessons|modules|navigation|table of contents|contents|on this page)$/i.test(label) ? label : prettify(path.split('/').filter(Boolean).at(-1) || current.hostname)) : clean(doc.querySelector('h1')?.textContent || doc.title);
     const member = unique.some(item => pageUrl(item.url!) === pageUrl(currentUrl));
     const coherent = path !== '/';
-    const semantic = container.matches('nav,aside,[role="navigation"],[class*="sidebar"]');
     if (!numbered && (!coherent || !semantic || (!hint && !pathHint))) continue;
     const mixed = !coherent || numbered > 0 && numbered < unique.length / 2;
     candidates.push({ detectorId: numbered >= 3 ? 'curriculum-navigation' : 'documentation-navigation', reasons: [numbered >= 3 ? 'Numbered learning sequence' : 'Labeled learning navigation', crossPage ? 'Related chapter pages' : 'Anchored page sections', ...(member ? ['Contains current page'] : []), ...(coherent ? ['Shared course path'] : []), ...(mixed ? ['Mixed navigation links'] : [])], course: normalize(title, sourceUrl, unique, 'navigation'), score: numbered * weights.numbered + (hint ? weights.learningLabel : 0) + (crossPage ? weights.crossPage : 0) + (member ? weights.currentPage : 0) + (coherent ? weights.coherentPath : 0) - (mixed ? weights.mixedLinkPenalty : 0) + Math.min(unique.length, weights.linkCap) });

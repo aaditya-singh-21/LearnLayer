@@ -6,6 +6,16 @@ export function ChapterNotes({ course, chapter, onClose }: { course:LearningCour
   const [error,setError] = useState(''), [saving,setSaving] = useState(false), [ready,setReady] = useState(false), [conflict,setConflict] = useState(false);
   const editor = useRef<HTMLDivElement>(null);
   const dirty = useRef(false), draft = useRef(''), savedNote = useRef('');
+  useEffect(() => {
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.isComposing || event.defaultPrevented) return;
+      // Dismiss the inner notes view before the floating panel's Escape handler.
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (!saving && !event.repeat) onClose();
+    };
+    document.addEventListener('keydown',dismiss,true);
+    return () => document.removeEventListener('keydown',dismiss,true);
+  }, [onClose,saving]);
   draft.current = note; savedNote.current = baseline; dirty.current = note !== baseline;
   useEffect(() => {
     const root = editor.current?.getRootNode();

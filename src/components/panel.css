@@ -119,3 +119,6 @@
 .ll-editor textarea:focus-visible,.ll-editor select:focus-visible { outline:2px solid #b4f1cc; }
 .ll-notes { flex:1 1 auto; }
 .ll-child-count { color:#a4bfae; font-size:11px; }
+.ll-tree-actions { display:flex; gap:6px; width:100%; }
+.ll-tree-actions button { min-height:32px; padding:6px 10px; border-radius:6px; background:#202e25; color:#bfe3cd !important; font-size:11px; }
+.ll-tree-actions button:hover { background:#304b3a; }

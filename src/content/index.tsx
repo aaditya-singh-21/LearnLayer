@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Panel } from '../components/Panel';
 import css from '../components/panel.css?inline';
 import { detectLearningReport } from '../detection/detect';
@@ -76,14 +76,25 @@ if (!document.getElementById('learnlayer-root')) {
   });
   function Layer() {
     const [page, setPage] = useState(snapshot), [open, setOpen] = useState(false), [edit, setEdit] = useState(false);
+    const restoreFocus = useRef(true);
     useEffect(() => { const fn = () => setPage(snapshot); subscribers.add(fn); fn(); return () => { subscribers.delete(fn); }; }, []);
     useEffect(() => { const fn = (requested: boolean) => { setEdit(requested); setOpen(true); }; openSubscribers.add(fn); return () => { openSubscribers.delete(fn); }; }, []);
     useEffect(() => {
       if (!open) return;
+      restoreFocus.current = true;
       shadow.querySelector<HTMLButtonElement>('.ll-close')?.focus({ preventScroll: true });
-      const listener = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); setEdit(false); } };
+      const listener = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !e.repeat) { setOpen(false); setEdit(false); } };
+      const outside = (event: PointerEvent) => {
+        // Shadow DOM retargets events; composedPath distinguishes internal clicks.
+        if (event.composedPath().includes(host)) return;
+        restoreFocus.current = false; setOpen(false); setEdit(false);
+      };
       document.addEventListener('keydown', listener);
-      return () => { document.removeEventListener('keydown', listener); shadow.querySelector<HTMLButtonElement>('.ll-float')?.focus({ preventScroll: true }); };
+      document.addEventListener('pointerdown',outside,true);
+      return () => {
+        document.removeEventListener('keydown', listener); document.removeEventListener('pointerdown',outside,true);
+        if (restoreFocus.current) shadow.querySelector<HTMLButtonElement>('.ll-float')?.focus({ preventScroll: true });
+      };
     }, [open]);
     if (!page.course && !page.detection?.candidates.length && !open) return null;
     return <>{open && <div className="ll-overlay"><Panel snapshot={{ ...page, editRequested: edit }} close={() => { setOpen(false); setEdit(false); }} navigate={url => { location.href = url; }} /></div>}<button className="ll-float" aria-expanded={open} onClick={() => { setOpen(!open); setEdit(false); }}>◈ LearnLayer {open ? '×' : '↗'}</button></>;

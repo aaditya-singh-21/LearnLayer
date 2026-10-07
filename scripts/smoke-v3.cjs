@@ -5,7 +5,7 @@ const { mkdtempSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tutorial">Hierarchical tutorial</a><nav aria-label="Chapters"><ol>' + [1,2,3].map(i => `<li><a href="/tutorial/${i}">Chapter ${i}: Topic ${i}</a><ol><li><a href="/tutorial/${i}#first">${i}.1. First section</a></li><li><a href="/tutorial/${i}#second">${i}.2. Second section</a></li></ol></li>`).join('') + '</ol></nav><main><h1>Learning tutorial</h1><h2 id="first">First section</h2><h2 id="second">Second section</h2></main>';
+const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tutorial">Hierarchical tutorial</a><nav aria-label="Chapters"><ol>' + [1,2,3].map(i => `<li><a href="/tutorial/${i}">Chapter ${i}: Topic ${i}</a><ol><li><a href="/tutorial/${i}#first">${i}.1. First section</a></li><li><a href="/tutorial/${i}#second">${i}.2. Second section</a></li></ol></li>`).join('') + '</ol></nav><main><input aria-label="Page search"><h1>Learning tutorial</h1><h2 id="first">First section</h2><h2 id="second">Second section</h2></main>';
 (async () => {
   const server = http.createServer((_req,res) => { res.setHeader('Content-Type','text/html'); res.end(fixture); });
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
@@ -29,6 +29,10 @@ const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tu
     const panel=page.locator('.ll-panel');
     await panel.getByText('of 6 topics completed').waitFor();
     await page.waitForFunction(()=>document.querySelector('#learnlayer-root').shadowRoot.querySelector('[role="progressbar"]').getAttribute('aria-valuenow')==='33');
+    await panel.getByRole('button',{name:'Collapse all',exact:true}).click();
+    assert.equal(await panel.getByRole('button',{name:/Notes and bookmark:/}).count(),3);
+    await panel.getByRole('button',{name:'Expand all',exact:true}).focus();await page.keyboard.press('Enter');
+    assert.equal(await panel.getByRole('button',{name:/Notes and bookmark:/}).count(),9);
     const collapse=panel.getByRole('button',{name:'Collapse: Chapter 1: Topic 1',exact:true});
     await collapse.focus();await page.keyboard.press('Enter');
     assert.equal(await panel.getByRole('button',{name:'Notes and bookmark: 1.1. First section',exact:true}).count(),0);
@@ -46,7 +50,15 @@ const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tu
     await panel.getByRole('alert').getByText('Simulated write failure').waitFor();assert.equal(await note.inputValue(),'Retry draft stays here');
     await worker.evaluate(()=>{chrome.storage.local.set=globalThis.originalSet;});
     await panel.getByRole('button',{name:'Save note',exact:true}).click();await panel.getByText('Saved locally').waitFor();
-    await panel.getByRole('button',{name:'Close notes',exact:true}).click();
+    await note.fill('Unsaved draft discarded by Escape');await page.keyboard.press('Escape');
+    await panel.getByRole('button',{name:'Notes and bookmark: 2.1. First section',exact:true}).waitFor();
+    assert.equal(await panel.isVisible(),true);
+    await page.keyboard.press('Escape');await panel.waitFor({state:'hidden'});
+    await page.getByRole('button',{name:/LearnLayer/}).click();
+    await panel.getByRole('heading',{name:'Hierarchical tutorial',exact:true}).click();assert.equal(await panel.isVisible(),true);
+    await page.getByLabel('Page search',{exact:true}).click();await panel.waitFor({state:'hidden'});
+    assert.equal(await page.getByLabel('Page search',{exact:true}).evaluate(input=>document.activeElement===input),true);
+    await page.getByRole('button',{name:/LearnLayer/}).click();
     await panel.getByRole('button',{name:'Bookmarks',exact:true}).click();
     assert.equal(await panel.getByRole('button',{name:/Notes and bookmark:/}).count(),1);
     await panel.getByRole('button',{name:'All chapters',exact:true}).click();
@@ -70,7 +82,13 @@ const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tu
     await topicPage.locator('.ll-panel').getByRole('button',{name:'Notes and bookmark: 2.1. First section',exact:true}).click();
     await topicPage.waitForFunction(()=>document.querySelector('#learnlayer-root').shadowRoot.querySelector('textarea').value==='Updated from dashboard');
     await topicPage.getByRole('button',{name:'Close notes',exact:true}).click();
-    await dashboard.getByRole('button',{name:'Close notes',exact:true}).click();
+    await dashboard.keyboard.press('Escape');
+    await dashboard.locator('.dashboard-editor').waitFor({state:'hidden'});
+    await dashboard.getByLabel('Search notes and bookmarks',{exact:true}).fill('updated');
+    await dashboard.getByRole('button',{name:'Edit note & bookmark',exact:true}).click();
+    await dashboard.getByLabel('Your note',{exact:true}).click();assert.equal(await dashboard.locator('.dashboard-editor').isVisible(),true);
+    await dashboard.locator('.editor-backdrop').click({position:{x:2,y:2}});
+    await dashboard.locator('.dashboard-editor').waitFor({state:'hidden'});
     // Add a child beneath a completed parent: new child must remain incomplete.
     await panel.getByRole('button',{name:'Edit course',exact:true}).click();
     await panel.getByRole('button',{name:'Move chapter 1 down',exact:true}).click();
@@ -101,7 +119,7 @@ const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tu
     await persisted.getByText('Updated from dashboard',{exact:true}).waitFor();
     await persisted.getByRole('heading',{name:'★ 2.1. First section',exact:true}).waitFor();
     assert.deepEqual(errors,[]);
-    console.log('PASS: V2 migration, hierarchy/keyboard collapse, leaf progress, notes/bookmarks, failed-save retry, cross-tab drafts, anchor navigation, hierarchy editing, removal retention, narrow layout, and profile restart.');
+    console.log('PASS: V2 migration, hierarchy/keyboard collapse, expand/collapse all, notes Escape precedence, outside dismissal, leaf progress, notes/bookmarks, failed-save retry, cross-tab drafts, anchor navigation, hierarchy editing, removal retention, narrow layout, and profile restart.');
     console.log('Screenshots:',path.join(tmpdir(),'learnlayer-v3-panel.png'),path.join(tmpdir(),'learnlayer-v3-dashboard.png'));
   } finally { if(context) await context.close();await new Promise(resolve=>server.close(resolve)); }
 })().catch(e=>{console.error(e);process.exitCode=1;});

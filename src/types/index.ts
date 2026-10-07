@@ -1,4 +1,4 @@
-export type Chapter = { id: string; title: string; url?: string; completed: boolean };
+export type Chapter = { id: string; title: string; url?: string; completed: boolean; parentId?: string };
 export type LearningCourse = { id: string; title: string; sourceUrl: string; chapters: Chapter[]; kind: 'navigation' | 'headings' };
 export type DetectionCandidate = { course: LearningCourse; detectorId: string; reasons: string[]; score: number };
 export type DetectionReport = { status: 'detected' | 'ambiguous' | 'unsupported'; candidates: DetectionCandidate[]; selected?: DetectionCandidate };

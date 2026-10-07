@@ -8,7 +8,7 @@ import '../components/panel.css';
 import './demo.css';
 installPreviewChrome();
 const titles = ['Scale from Zero to Millions of Users','Back-of-the-Envelope Estimation','A Framework for System Design Interviews','Design a Rate Limiter','Design Consistent Hashing','Design a Key-Value Store','Design a URL Shortener'];
-const doc = new DOMParser().parseFromString(`<a href="/system-design">System Design</a><nav aria-label="Chapters"><ul>${titles.map((t,i) => `<li><a href="/system-design/chapter-${i+1}">Chapter ${i+1}: ${t}</a></li>`).join('')}</ul></nav>`, 'text/html');
+const doc = new DOMParser().parseFromString(`<a href="/system-design">System Design</a><nav aria-label="Chapters"><ul>${titles.map((t,i) => `<li><a href="/system-design/chapter-${i+1}">Chapter ${i+1}: ${t}</a>${i<2 ? `<ul><li><a href="/system-design/chapter-${i+1}#overview">${i+1}.1. Overview</a></li><li><a href="/system-design/chapter-${i+1}#practice">${i+1}.2. Practice</a></li></ul>` : ''}</li>`).join('')}</ul></nav>`, 'text/html');
 const course = detectLearningStructure(doc, 'https://demo.learnlayer.test/system-design/chapter-1');
 function Demo() {
   const [url, setUrl] = useState(sessionStorage.getItem('ll:demo-url') || 'https://demo.learnlayer.test/system-design/chapter-1');

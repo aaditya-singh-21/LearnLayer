@@ -1,0 +1,107 @@
+// Installed-extension acceptance checks in an isolated Chromium profile.
+const { chromium } = require(process.env.LEARNLAYER_PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const { mkdtempSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const path = require('node:path');
+const http = require('node:http');
+const fixture = '<!doctype html><title>Hierarchical tutorial</title><a href="/tutorial">Hierarchical tutorial</a><nav aria-label="Chapters"><ol>' + [1,2,3].map(i => `<li><a href="/tutorial/${i}">Chapter ${i}: Topic ${i}</a><ol><li><a href="/tutorial/${i}#first">${i}.1. First section</a></li><li><a href="/tutorial/${i}#second">${i}.2. Second section</a></li></ol></li>`).join('') + '</ol></nav><main><h1>Learning tutorial</h1><h2 id="first">First section</h2><h2 id="second">Second section</h2></main>';
+(async () => {
+  const server = http.createServer((_req,res) => { res.setHeader('Content-Type','text/html'); res.end(fixture); });
+  await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const profile = mkdtempSync(path.join(tmpdir(),'learnlayer-v3-'));
+  const options = { channel:'chromium',headless:true,args:[`--disable-extensions-except=${path.resolve('dist')}`,`--load-extension=${path.resolve('dist')}`] };
+  let context; const errors=[];
+  try {
+    context = await chromium.launchPersistentContext(profile,options);
+    const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+    const extensionId = new URL(worker.url()).host;
+    // Seed a real V2 flat course and one old V1 completion key before visiting.
+    await worker.evaluate(async base => {
+      function hash(value) { let h=2166136261; for(const char of value) { h^=char.charCodeAt(0); h=Math.imul(h,16777619); } return (h>>>0).toString(36); }
+      const sourceUrl=base+'/tutorial',title='Hierarchical tutorial',id=hash(sourceUrl+'|'+title.toLowerCase());
+      const chapters=[1,2,3].map(i=>({id:hash(id+'|'+base+'/tutorial/'+i),title:`Chapter ${i}: Topic ${i}`,url:base+'/tutorial/'+i,completed:false}));
+      await chrome.storage.local.set({'ll:v2:catalog':{[id]:{version:2,course:{id,title,sourceUrl,chapters,kind:'navigation'},originalId:id,corrected:false,membership:'saved',activity:1}},[`ll:v1:${id}:${chapters[0].id}`]:true});
+    },base);
+    const page = await context.newPage(); page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(base+'/tutorial/1'); await page.getByRole('button',{name:/LearnLayer/}).click();
+    const panel=page.locator('.ll-panel');
+    await panel.getByText('of 6 topics completed').waitFor();
+    await page.waitForFunction(()=>document.querySelector('#learnlayer-root').shadowRoot.querySelector('[role="progressbar"]').getAttribute('aria-valuenow')==='33');
+    const collapse=panel.getByRole('button',{name:'Collapse: Chapter 1: Topic 1',exact:true});
+    await collapse.focus();await page.keyboard.press('Enter');
+    assert.equal(await panel.getByRole('button',{name:'Notes and bookmark: 1.1. First section',exact:true}).count(),0);
+    await panel.getByRole('button',{name:'Expand: Chapter 1: Topic 1',exact:true}).click();
+    await panel.getByRole('button',{name:'Mark complete: 2.1. First section',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#learnlayer-root').shadowRoot.querySelector('[role="progressbar"]').getAttribute('aria-valuenow')==='50');
+    await panel.getByRole('button',{name:'Notes and bookmark: 2.1. First section',exact:true}).click();
+    const note=panel.getByLabel('Your note',{exact:true}); await note.fill('Recall the scope example.\n<script>plain text</script>');
+    await panel.getByRole('button',{name:'Bookmark this topic'}).click();
+    assert.equal(await note.inputValue(),'Recall the scope example.\n<script>plain text</script>');
+    await panel.getByRole('button',{name:'Save note',exact:true}).click();await panel.getByText('Saved locally').waitFor();
+    // A failed write must preserve the draft for retry.
+    await worker.evaluate(()=>{globalThis.originalSet=chrome.storage.local.set;chrome.storage.local.set=async()=>{throw new Error('Simulated write failure');};});
+    await note.fill('Retry draft stays here');await panel.getByRole('button',{name:'Save note',exact:true}).click();
+    await panel.getByRole('alert').getByText('Simulated write failure').waitFor();assert.equal(await note.inputValue(),'Retry draft stays here');
+    await worker.evaluate(()=>{chrome.storage.local.set=globalThis.originalSet;});
+    await panel.getByRole('button',{name:'Save note',exact:true}).click();await panel.getByText('Saved locally').waitFor();
+    await panel.getByRole('button',{name:'Close notes',exact:true}).click();
+    await panel.getByRole('button',{name:'Bookmarks',exact:true}).click();
+    assert.equal(await panel.getByRole('button',{name:/Notes and bookmark:/}).count(),1);
+    await panel.getByRole('button',{name:'All chapters',exact:true}).click();
+    const dashboard=await context.newPage();dashboard.on('pageerror',e=>errors.push(e.message));
+    await dashboard.goto(`chrome-extension://${extensionId}/dashboard.html`);
+    await dashboard.getByLabel('Search notes and bookmarks',{exact:true}).fill('retry draft');
+    await dashboard.getByText('Retry draft stays here',{exact:true}).waitFor();
+    await dashboard.getByRole('button',{name:'Show bookmarks only',exact:true}).click();
+    const openPromise=context.waitForEvent('page');await dashboard.getByRole('button',{name:'Open topic',exact:false}).click();
+    const topicPage=await openPromise;await topicPage.waitForURL(base+'/tutorial/2#first');
+    await topicPage.getByRole('button',{name:/LearnLayer/}).click();
+    await topicPage.locator('.ll-panel').getByRole('button',{name:'Notes and bookmark: 2.1. First section',exact:true}).click();
+    await topicPage.getByLabel('Your note',{exact:true}).fill('Unsaved local draft');
+    await dashboard.getByRole('button',{name:'Edit note & bookmark',exact:true}).click();
+    await dashboard.getByLabel('Your note',{exact:true}).fill('Updated from dashboard');
+    await dashboard.getByRole('button',{name:'Save note',exact:true}).click();
+    await dashboard.getByText('Saved locally').waitFor();
+    await topicPage.getByRole('status').waitFor();
+    assert.equal(await topicPage.getByLabel('Your note',{exact:true}).inputValue(),'Unsaved local draft');
+    await topicPage.getByRole('button',{name:'Discard draft & close',exact:true}).click();
+    await topicPage.locator('.ll-panel').getByRole('button',{name:'Notes and bookmark: 2.1. First section',exact:true}).click();
+    await topicPage.waitForFunction(()=>document.querySelector('#learnlayer-root').shadowRoot.querySelector('textarea').value==='Updated from dashboard');
+    await topicPage.getByRole('button',{name:'Close notes',exact:true}).click();
+    await dashboard.getByRole('button',{name:'Close notes',exact:true}).click();
+    // Add a child beneath a completed parent: new child must remain incomplete.
+    await panel.getByRole('button',{name:'Edit course',exact:true}).click();
+    await panel.getByRole('button',{name:'Move chapter 1 down',exact:true}).click();
+    assert.equal(await panel.getByLabel('Chapter 1 title',{exact:true}).inputValue(),'Chapter 2: Topic 2');
+    await panel.getByRole('button',{name:'Move chapter 4 up',exact:true}).click();
+    await panel.getByRole('button',{name:'Add subsection',exact:false}).first().click();
+    await panel.getByLabel('Chapter 4 title',{exact:true}).fill('Extra practice');
+    await panel.getByLabel('Chapter 4 URL',{exact:true}).fill('/tutorial/1#extra');
+    await panel.getByRole('button',{name:'Save changes',exact:true}).click();
+    await panel.getByRole('button',{name:'Mark complete: Extra practice',exact:true}).waitFor();
+    await panel.getByRole('button',{name:'Continue learning',exact:false}).click();
+    await page.waitForURL(base+'/tutorial/1#extra');
+    await page.setViewportSize({width:420,height:480});
+    if (!await panel.isVisible()) await page.getByRole('button',{name:/LearnLayer/}).click();
+    await page.screenshot({path:path.join(tmpdir(),'learnlayer-v3-panel.png')});
+    const overflow=await page.evaluate(()=>{const p=document.querySelector('#learnlayer-root').shadowRoot.querySelector('.ll-panel');return p.scrollWidth>p.clientWidth;});
+    assert.equal(overflow,false);
+    // Remove an annotated subsection; its note/bookmark remains searchable.
+    await panel.getByRole('button',{name:'Edit course',exact:true}).click();
+    await panel.getByRole('button',{name:'Remove',exact:true}).nth(5).click();
+    await panel.getByRole('button',{name:'Save changes',exact:true}).click();
+    await dashboard.getByLabel('Search notes and bookmarks',{exact:true}).fill('updated');
+    await dashboard.getByText('Updated from dashboard',{exact:true}).waitFor();
+    await dashboard.screenshot({path:path.join(tmpdir(),'learnlayer-v3-dashboard.png'),fullPage:true});
+    await context.close();context=null;
+    context=await chromium.launchPersistentContext(profile,options);
+    const persisted=await context.newPage();await persisted.goto(`chrome-extension://${extensionId}/dashboard.html`);
+    await persisted.getByText('Updated from dashboard',{exact:true}).waitFor();
+    await persisted.getByRole('heading',{name:'★ 2.1. First section',exact:true}).waitFor();
+    assert.deepEqual(errors,[]);
+    console.log('PASS: V2 migration, hierarchy/keyboard collapse, leaf progress, notes/bookmarks, failed-save retry, cross-tab drafts, anchor navigation, hierarchy editing, removal retention, narrow layout, and profile restart.');
+    console.log('Screenshots:',path.join(tmpdir(),'learnlayer-v3-panel.png'),path.join(tmpdir(),'learnlayer-v3-dashboard.png'));
+  } finally { if(context) await context.close();await new Promise(resolve=>server.close(resolve)); }
+})().catch(e=>{console.error(e);process.exitCode=1;});

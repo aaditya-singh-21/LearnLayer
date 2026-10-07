@@ -51,10 +51,29 @@ it('detects a nested curriculum in main content at an index, not its section sub
   const report=detectLearningReport(doc(html),`https://${host}/3/tutorial/${index}`);
   expect(report.status).toBe('detected');expect(report.candidates).toHaveLength(1);
   expect(report.selected?.course.title).toBe('The Programming Tutorial');
-  expect(report.selected?.course.chapters).toHaveLength(4);expect(report.selected?.course.sourceUrl).toBe(`https://${host}/3/tutorial`);
+  expect(report.selected?.course.chapters).toHaveLength(16);expect(report.selected?.course.sourceUrl).toBe(`https://${host}/3/tutorial`);
+  const chapters=report.selected!.course.chapters;
+  expect(chapters.filter(c=>!c.parentId)).toHaveLength(4);
+  expect(chapters[1].parentId).toBe(chapters[0].id);
  }
 });
 it('rejects uncontextualized numbered link lists in main content',()=>{
  const html='<main><h1>Our products</h1><ul>'+[1,2,3].map(i=>`<li><a href="/products/${i}">${i}. Product ${i}</a></li>`).join('')+'</ul></main>';
  expect(detectLearningReport(doc(html),'https://example.com/products/').status).toBe('unsupported');
+});
+it('nests article H3 sections under the preceding H2',()=>{
+ const html='<title>Learning guide</title><main><h1>Learning guide</h1><h2 id="one">First topic</h2><h3 id="detail">A detail</h3><h2 id="two">Second topic</h2><h2 id="three">Third topic</h2></main>';
+ const report=detectLearningReport(doc(html),'https://example.com/guide');
+ expect(report.status).toBe('detected');
+ const chapters=report.selected!.course.chapters;
+ expect(chapters[1].parentId).toBe(chapters[0].id);expect(chapters[2].parentId).toBeUndefined();
+});
+it('uses contextual hierarchical numbering even when a book menu is a flat list',()=>{
+ const html='<nav aria-label="Book chapters">'+['1. Introduction','1.1. Install','1.2. Run','2. Practice'].map((title,i)=>`<a href="/book/${i}">${title}</a>`).join('')+'</nav>';
+ const chapters=detectLearningReport(doc(html),'https://example.com/book/0').selected!.course.chapters;
+ expect(chapters[1].parentId).toBe(chapters[0].id);expect(chapters[2].parentId).toBe(chapters[0].id);expect(chapters[3].parentId).toBeUndefined();
+});
+it('excludes current-article-only anchors nested beneath a cross-page book sidebar',()=>{
+ const html='<nav class="sidebar" aria-label="Book chapters"><ol>'+[1,2,3,4].map(i=>`<li><a href="/book/${i}">${i}. Topic ${i}</a>${i===1?'<ol><li><a href="/book/1#detail">Current article detail</a></li></ol>':''}</li>`).join('')+'</ol></nav>';
+ expect(detectLearningReport(doc(html),'https://example.com/book/1').selected!.course.chapters).toHaveLength(4);
 });

@@ -35,14 +35,27 @@ export function navigationCandidates(doc: Document, currentUrl: string): Detecti
     for (const link of container.querySelectorAll('a[href]')) {
       const title = clean(link.textContent);
       if (title.length < 3 || title.length > 180 || /^(home|login|sign in|contact|privacy|terms|about|pricing|next|previous)$/i.test(title)) continue;
-      try { const url = new URL(link.getAttribute('href')!, currentUrl); if (!/^https?:$/.test(url.protocol) || url.origin !== current.origin) continue; items.push({ title, url: canonicalUrl(url.href) }); } catch { /* malformed link */ }
+      try {
+        const url = new URL(link.getAttribute('href')!, currentUrl);
+        if (!/^https?:$/.test(url.protocol) || url.origin !== current.origin) continue;
+        // Nested lists express a parent relationship without site-specific selectors.
+        const parentLi = link.closest('li')?.parentElement?.closest('li');
+        const parentLink = parentLi && [...parentLi.querySelectorAll('a[href]')].find(a => a.closest('li') === parentLi);
+        const parentUrl = parentLink ? canonicalUrl(new URL(parentLink.getAttribute('href')!, currentUrl).href) : undefined;
+        items.push({ title, url: canonicalUrl(url.href), ...(parentUrl ? { parentUrl } : {}) });
+      } catch { /* malformed link */ }
     }
     let unique = [...new Map(items.map(item => [item.url, item])).values()];
-    // Some book sidebars insert the current article's headings beneath the
-    // chapter list. Keep chapter navigation stable as those headings change.
+    // Ignore detached, transient article contents, but keep nested curriculum sections.
     if (unique.filter(item => pageUrl(item.url!) !== pageUrl(currentUrl)).length >= 3) {
       const chapterPages = new Set(unique.filter(item => !new URL(item.url!).hash).map(item => pageUrl(item.url!)));
-      unique = unique.filter(item => !new URL(item.url!).hash || !chapterPages.has(pageUrl(item.url!)));
+      unique = unique.filter(item => item.parentUrl || !new URL(item.url!).hash || !chapterPages.has(pageUrl(item.url!)));
+      const anchoredPages = new Set(unique.filter(item => new URL(item.url!).hash).map(item => pageUrl(item.url!)));
+      // A book can inject only the current article's headings beneath its TOC.
+      // A multi-page index has anchors across chapters; retain that curriculum.
+      if (anchoredPages.size === 1 && anchoredPages.has(pageUrl(currentUrl)) && chapterPages.has(pageUrl(currentUrl))) {
+        unique = unique.filter(item => !new URL(item.url!).hash);
+      }
     }
     if (unique.length < 3 || unique.length > 150) continue;
     const path = sharedPath(unique);
@@ -58,6 +71,16 @@ export function navigationCandidates(doc: Document, currentUrl: string): Detecti
     // Numbered product lists alone are not evidence of a curriculum.
     const bookNumbers = semantic && path !== '/' && (toc || hint || pathHint);
     const numbered = unique.filter(item => sequence.test(item.title) || bookNumbers && numericSequence.test(item.title)).length;
+    if (bookNumbers) {
+      const numbers = new Map<string,string>();
+      for (const item of unique) {
+        const number = item.title.match(/^(?:chapter\s+)?(\d+(?:\.\d+)*)[.)]?\s+/i)?.[1];
+        if (!number) continue;
+        const parentNumber = number.includes('.') ? number.slice(0,number.lastIndexOf('.')) : '';
+        if (!item.parentUrl && numbers.has(parentNumber)) item.parentUrl = numbers.get(parentNumber);
+        numbers.set(number,item.url!);
+      }
+    }
     if (numbered < 3 && !hint && !pathHint) continue;
     // Generic menus and unrelated article link lists are not a learning sequence.
     if (!numbered && !hint && (!pathHint || !semantic)) continue;

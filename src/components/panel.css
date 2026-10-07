@@ -110,3 +110,12 @@
 .ll-tools { display:flex; gap:7px; flex-wrap:wrap; margin-top:12px; }
 .ll-editor details { padding:10px; border:1px solid #354c3e; border-radius:8px; }
 .ll-editor summary { cursor:pointer; } .ll-editor .ll-error { color:#ffc9bc; }
+.ll-tree-toggle { background:transparent; color:#b4f1cc !important; width:24px; min-width:24px; height:40px; padding:0; border-radius:5px; }
+.ll-tree-toggle:disabled { opacity:.4; }
+.ll-topic-notes { background:#26392d; color:#c6ecd3 !important; width:32px; min-width:32px; height:40px; padding:0; border-radius:6px; }
+.ll-chapters li { gap:4px; }
+.ll-editor textarea,.ll-editor select { display:block; width:100%; box-sizing:border-box; padding:9px; margin-top:6px; background:#121d16; color:#e8f3ec; border:1px solid #496050; border-radius:6px; font:inherit; }
+.ll-editor textarea { resize:vertical; min-height:140px; line-height:1.6; }
+.ll-editor textarea:focus-visible,.ll-editor select:focus-visible { outline:2px solid #b4f1cc; }
+.ll-notes { flex:1 1 auto; }
+.ll-child-count { color:#a4bfae; font-size:11px; }

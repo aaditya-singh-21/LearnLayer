@@ -16,3 +16,6 @@ progress { width:100%; height:8px; accent-color:#b4f1cc; } .empty { color:#a4b6a
 .editor-backdrop { position:fixed; inset:0; background:#000a; display:grid; place-items:center; z-index:10; padding:12px; }
 .dashboard-editor { width:680px; height:85dvh; max-height:90dvh; }
 @media(max-width:600px) { .dashboard { padding:18px; } .dashboard h1 { font-size:32px; } }
+.learning-notes .course-grid { margin-top:18px; }
+.note-preview { white-space:pre-wrap; overflow-wrap:anywhere; max-height:180px; overflow:auto; color:#c6d7cb; }
+.dashboard button[aria-pressed="true"] { background:#3b6248; border-color:#8cc49d; }

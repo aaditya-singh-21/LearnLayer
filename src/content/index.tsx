@@ -42,7 +42,7 @@ if (!document.getElementById('learnlayer-root')) {
         course = null; detection.status = 'ambiguous'; delete detection.selected;
         detection.candidates = matches.map(r => ({ course: r.course, detectorId: 'stored-definition', score: 100, reasons: ['Previously tracked course contains this page'] }));
       }
-      if (course && !catalog[course.id] && course.kind === 'navigation' &&
+      if (course && (!catalog[course.id] || JSON.stringify(catalog[course.id].course) !== JSON.stringify(course)) && course.kind === 'navigation' &&
           new Set(course.chapters.map(c => c.url && pageUrl(c.url))).size >= 3) {
         // Retain the curriculum for chapter pages that only expose local
         // sections. This creates no Saved or Recent membership.

@@ -140,3 +140,9 @@ node scripts/check-rust.cjs
 ```
 
 The actual Chrome toolbar click/activeTab permission still needs a manual check. Backup/restore, cloud sync, and a detection benchmark remain outside this implementation.
+
+### Query-routed curriculum fix (October 9, 2026)
+
+Generic navigation detection now recognizes sibling lesson paths encoded in URL query parameters, with no hostname-specific rules. It uses the current lesson’s shared query-path scope to exclude adjacent-phase navigation, accepts singular learning labels, and reads accessible sidebar labels or section headers for a stable course title. Non-learning product menus and unrelated query groups remain unsupported. The inferred course source retains the shared route prefix and constant scope parameters; chapter URLs remain the actual navigable URLs. Existing pathname-based course identities are unchanged.
+
+`npm test` passed 55 tests in 11 files. The installed live-site check `node scripts/check-query-curriculum.cjs` passed against AI Engineering from Scratch: all 17 Speech & Audio lessons were detected, adjacent phases were excluded, completion survived lesson navigation and reload, and switching phases created a distinct course identity. This checks one live query-routed structure, not broad site compatibility. Use the same Playwright environment described above to repeat it.
